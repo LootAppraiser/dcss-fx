@@ -1,4 +1,4 @@
-# dcss-fx
+# DCSS FX
 
 Visual polish for **Dungeon Crawl Stone Soup Webtiles**, running in your browser as a
 [DWEM](https://github.com/refracta/dcss-webtiles-extension-module) module. Purely cosmetic:
@@ -11,9 +11,11 @@ client already received is drawn.
 - **Attack effects**: the attacker lunges, a hit target recoils and flashes (red for you, white for
   monsters), a miss makes the target sidestep. Overlapping hits all show.
 - **Smooth light**: replaces the game's hard lit/dim tiles with one continuous ray-cast light pool around you:
-  full brightness near you, falling off smoothly to the dim "remembered" level, with soft shadows behind walls
-  and doorways. No tile edges show in the lighting. It only uses what the game already shows you, and visible
-  monsters and items are never dimmed away. A hotkey toggles it so you can compare.
+  bright where you can see, fading smoothly into the dim "remembered" level at your vision range, with soft
+  shadows behind walls and doorways. No tile edges show in the lighting. It only uses what the game already shows
+  you, and it is anchored to the game's own truth: a tile the game says you see is never darker than a floor level,
+  and a tile you only remember never reads as seen, so you can always tell what is in sight. A hotkey toggles it
+  so you can compare.
 - HP/MP mini-bars follow your sprite instead of jumping.
 
 Everything is **off until you turn it on in your RC**. Tile mode only (glyph/console mode and the
@@ -55,10 +57,11 @@ Works on the servers DWEM supports (CDI, CAO, CBR2, CNC, CPO, CXC, ...).
 | `fx_bump_anim = true` | off | Attack effects (lunge / recoil + flash / sidestep) |
 | `fx_bump_ms` | 190 | Length of one attack effect (ms) |
 | `fx_light = true` | off | Smooth ray-cast light around you |
-| `fx_light_radius` | 8 | Distance in tiles where the light has faded to the remembered level |
-| `fx_light_core` | 0.3 | Fraction of the radius that stays fully bright before the falloff starts |
-| `fx_light_ambient` | 0.38 | Brightness of remembered (out of sight) tiles, and of everything past the radius |
-| `fx_light_shadow` | 0.55 | Brightness floor for visible monsters and items, so none is lost in the dark |
+| `fx_light_radius` | 7.5 | Your vision range in tiles; the light ends here, fading over half a tile either side |
+| `fx_light_core` | 0.3 | Fraction of the radius that stays fully bright before the gentle falloff starts |
+| `fx_light_edge` | 0.85 | Brightness of lit tiles at the radius (1 = no falloff) |
+| `fx_light_shadow` | 0.7 | Floor for every tile the game says you SEE, so seen always reads as seen |
+| `fx_light_ambient` | 0.38 | Brightness of remembered (out of sight) tiles; they never read brighter than halfway between this and `fx_light_shadow` |
 | `fx_light_key` | F8 | Key that toggles the light on/off (`Alt+L`, `Ctrl+Shift+L`, ... or `off`) |
 
 ## Debugging (browser console, F12)

@@ -32,9 +32,10 @@ const DEFAULTS = {
     maxJump: 3,       // a move bigger than this (teleport, blink) snaps instead of gliding
     chainMs: 260,     // steps closer together than this are chained
     light: false,       // smooth ray-cast light around the player (RC: fx_light)
-    lightRadius: 8,     // cells; the light pool fades smoothly to the remembered level at this distance
-    lightCore: 0.3,     // fraction of the radius that stays fully bright before the falloff starts
-    lightShadow: 0.55,  // brightness floor for visible monsters/items so none is ever lost in the dark
+    lightRadius: 7.5,   // cells; your vision range. The light ends here, fading over +-0.5 tile
+    lightCore: 0.3,     // fraction of the radius that stays fully bright before the gentle falloff starts
+    lightEdge: 0.85,    // brightness of lit tiles at the radius (1 = no falloff)
+    lightShadow: 0.7,   // floor for every tile the game says you SEE, so seen always reads as seen
     lightAmbient: 0.38, // brightness of remembered (out of sight) cells
     lightFadeMs: 70,    // how fast brightness eases when cells enter/leave sight
     lightKey: 'F8',     // key that toggles the light on/off for comparing (RC: fx_light_key; 'off' disables)
@@ -504,9 +505,11 @@ export function createFx(userCfg = {}) {
         const PEN = [-0.4, -0.2, 0, 0.2, 0.4];             // ray origins across the light's width: soft shadow edges
         const blurTmp = {a: null};
 
-        // One continuous light pool. Brightness = remembered level + (1 - remembered) * pool(distance) * visibility,
-        // so it meets the remembered tiles with no step at the rim. Nothing here depends on which tile the game
-        // calls "lit": the game's visible set only protects monsters/items (flag 16) from being dimmed away.
+        // One continuous light pool, anchored to the game's own truth so it never loses information.
+        //   geometry : A + (1 - A) * rim(distance) * rayVisibility * gentleFalloff(distance)   (smooth, no tile edges)
+        //   truth    : a tile the game says you SEE is never darker than `lightShadow`;
+        //              a tile it says you only REMEMBER is never brighter than halfway between ambient and that.
+        // So seen and remembered always read differently, while the smooth geometry supplies the gradient between.
         function computeTarget(ox, oy) {
             for (let cy = 0; cy < L.rows; cy++) {
                 for (let cx = 0; cx < L.cols; cx++) {
@@ -514,7 +517,8 @@ export function createFx(userCfg = {}) {
                 }
             }
             const R = Math.max(1, cfg.lightRadius), core = clamp(cfg.lightCore, 0, 0.9) * R;
-            const A = cfg.lightAmbient, shadow = cfg.lightShadow;
+            const A = cfg.lightAmbient, E = cfg.lightEdge;
+            const seenMin = Math.max(A, cfg.lightShadow), memMax = (A + seenMin) / 2;
             for (let j = 0; j < L.h; j++) {
                 const cy = Math.floor(j / S);
                 for (let i = 0; i < L.w; i++) {
@@ -527,9 +531,9 @@ export function createFx(userCfg = {}) {
                     } else {
                         const qx = L.vx + (i + 0.5) / S, qy = L.vy + (j + 0.5) / S;
                         const dx = qx - ox, dy = qy - oy, d = Math.hypot(dx, dy);
-                        const pool = 1 - smooth(clamp((d - core) / (R - core), 0, 1));
+                        const rim = 1 - smooth(clamp(d - (R - 0.5), 0, 1));      // light ends at the vision range
                         let vis = 0;
-                        if (pool > 0.002) {
+                        if (rim > 0.002) {
                             if (d < 0.6) vis = 1;
                             else {
                                 const px = -dy / d, py = dx / d;
@@ -538,8 +542,10 @@ export function createFx(userCfg = {}) {
                                 vis = sum / PEN.length;
                             }
                         }
-                        v = A + (1 - A) * pool * vis;
-                        if ((f & 16) && v < shadow) v = shadow;             // a visible monster/item is never lost
+                        const lit = 1 - (1 - E) * smooth(clamp((d - core) / Math.max(0.01, R - core), 0, 1));
+                        v = A + (1 - A) * rim * vis * lit;
+                        if (f & 1) { if (v < seenMin) v = seenMin; }              // the game says you see it
+                        else if (f & 2) { if (v > memMax) v = memMax; }           // the game says you only remember it
                     }
                     L.target[j * L.w + i] = v;
                 }

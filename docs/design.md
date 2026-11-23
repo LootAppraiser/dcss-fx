@@ -1,4 +1,4 @@
-# dcss-fx design (v0.6)
+# dcss-fx design (v0.7)
 
 ## Delivery
 A DWEM module (`src/index.js`, default export class with `onLoad`) that depends on `RCManager` for RC
@@ -170,3 +170,23 @@ our own field: visible cells fell off only to `lightEdge` (0.72) and then steppe
 - Measured on a live game (headless): worst brightness change within a third of a tile 143 -> 69, and the big
   steps went from clustered at tile borders (bins 180/148/45/38/167/181) to evenly spread (132/160/119/126/144/132).
   Not yet judged by a human in the real window; defaults are first guesses.
+
+## v0.7: the light must keep telling you what you can see
+Problem (measured on a live game, v0.6 with radius 8): brightness depended only on distance, so tiles the game
+says you SEE came out at 0.70 (4-6 tiles) and 0.46 (6-8 tiles) while tiles you only REMEMBER came out at 0.79
+and 0.46: at 6-8 tiles seen and remembered were identical. Everything looked "very dim" and the game's original
+information (what is in sight) was lost.
+- Geometry stays smooth and tile-independent, but now ends at the vision range instead of fading across it:
+  `A + (1 - A) * rim(d) * rayVisibility * gentleFalloff(d)` with `rim = 1 - smoothstep(R - 0.5, R + 0.5, d)` and a
+  gentle in-pool falloff down to `lightEdge` (0.85) instead of all the way to ambient.
+- It is anchored to the game's truth with guaranteed levels: a tile the game says you see is never below
+  `lightShadow` (0.7); a tile it says you only remember is never above `(ambient + lightShadow) / 2`. This
+  separation is by construction, so seen and remembered always read differently, and it replaces the earlier
+  monster/item-only floor. The clamps are per tile, but they only bite where the geometry disagrees with the game
+  (rare), the blur softens them, and the step is bounded by the gap between the two levels.
+- Measured (live game, headless): seen tiles 1.00 / 1.00 / 0.96 / 0.91 at 0-2 / 2-4 / 4-6 / 6-8 tiles; remembered
+  0.54 / 0.54 / 0.50; darkest seen tile 0.86, brightest remembered tile 0.54 (a 0.32 gap). Sharpness metric
+  unchanged (~70/255 per third of a tile, evenly spread, no tile grid).
+- `fx_light_edge` returned with a new meaning (brightness of lit tiles at the radius). The old v0.6 RC values
+  (radius 8, edge 0.72, shadow 0.55) work but leave only a 0.10 seen/remembered gap; use the new defaults.
+- Not yet judged by a human in the real window.
