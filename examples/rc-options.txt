@@ -1,0 +1,23 @@
+# DCSS FX options - paste into your RC (on the server: "edit rc"). Everything is off unless you add it.
+# Needs the DWEM loader + the DCSS FX loader userscripts, and tile mode (not glyph/console mode).
+
+# Step slide: sprites glide between tiles and the view follows you (also smooths autoexplore/travel)
+fx_move_anim = true
+fx_move_ms = 110
+
+# Extra: a little body hop + squash while stepping (needs the slide)
+fx_hop_anim = true
+fx_hop_height = 0.12
+
+# Attack effects: attacker lunges, a hit target recoils and flashes, a miss sidesteps
+fx_bump_anim = true
+fx_bump_ms = 190
+
+# Smooth ray-cast light around you instead of lit/dim tiles
+fx_light = true
+fx_light_radius = 8
+fx_light_edge = 0.72
+fx_light_shadow = 0.55
+fx_light_ambient = 0.38
+# Key that toggles the light on/off so you can compare (Alt+L, Ctrl+Shift+L, ...; "off" disables)
+fx_light_key = F8
