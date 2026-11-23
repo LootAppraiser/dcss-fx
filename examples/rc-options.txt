@@ -16,8 +16,8 @@ fx_bump_ms = 190
 # Smooth ray-cast light around you instead of lit/dim tiles
 fx_light = true
 fx_light_radius = 8
-fx_light_edge = 0.72
-fx_light_shadow = 0.55
+fx_light_core = 0.3
 fx_light_ambient = 0.38
+fx_light_shadow = 0.55
 # Key that toggles the light on/off so you can compare (Alt+L, Ctrl+Shift+L, ...; "off" disables)
 fx_light_key = F8

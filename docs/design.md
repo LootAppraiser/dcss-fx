@@ -1,4 +1,4 @@
-# dcss-fx design (v0.5)
+# dcss-fx design (v0.6)
 
 ## Delivery
 A DWEM module (`src/index.js`, default export class with `onLoad`) that depends on `RCManager` for RC
@@ -150,3 +150,23 @@ then rushing to catch up) and any update with a move > 1 cell hard-snapped and r
   autoexplore by a human.
 - Polished Crawl (AGPL-3.0) was read for the ideas (cadence-matched duration, bounded lag, burst = no
   animation, one curve for feet and camera); no code was copied.
+
+## v0.6: light rebuilt as one continuous field (no tile seams)
+Problem (measured): the game's own dim mesh was already removed from the real canvas (remembered walls
+rendered at exactly the visible brightness under the light, ratio 1.00), so the visible tile edges came from
+our own field: visible cells fell off only to `lightEdge` (0.72) and then stepped to the remembered level
+(0.38) at a tile boundary, built from per-tile classes at 3 samples per tile. The brightness changed by up to
+143/255 within a third of a tile, and those steps clustered at tile borders.
+- Brightness is now `ambient + (1 - ambient) * pool(distance) * visibility` everywhere, with
+  `pool = 1 - smoothstep(core*R, R, d)`: full near the player, exactly the remembered level at the rim, so there
+  is no step. `lightEdge` is gone; `lightCore` (flat bright fraction of the radius) replaces it.
+- `visibility` is the average of 5 rays from origins spread across the light's width (soft penumbra), at
+  sub-tile resolution (4 samples per tile). The target cell of a ray is exempt so wall faces are lit; light
+  then fades over ~0.9 tile into the wall, so a lit wall has no tile-sized edge either.
+- The game's visible set no longer decides what is lit. It only protects cells that hold a visible
+  monster/item (flag 16) with a brightness floor (`lightShadow`). Never-seen cells stay black (their tile is
+  black); magic-mapped cells keep the game's own mesh.
+- A 1-2-1 blur over the sample grid removes any leftover quantisation.
+- Measured on a live game (headless): worst brightness change within a third of a tile 143 -> 69, and the big
+  steps went from clustered at tile borders (bins 180/148/45/38/167/181) to evenly spread (132/160/119/126/144/132).
+  Not yet judged by a human in the real window; defaults are first guesses.

@@ -7,13 +7,13 @@
 //     fx_bump_anim = true    attack effects: lunge, recoil + hit flash, dodge on a miss
 //     fx_bump_ms   = 190     (optional, ms per attack effect)
 //     fx_light     = true    smooth ray-cast light around the player instead of lit/dim tiles
-//     fx_light_radius / fx_light_edge / fx_light_shadow / fx_light_ambient  (optional tuning)
+//     fx_light_radius / fx_light_core / fx_light_shadow / fx_light_ambient  (optional tuning)
 //     fx_light_key = F8      key that toggles the light on/off to compare (e.g. Alt+L, Ctrl+Shift+L; 'off' = none)
 import {createFx} from './fx.js';
 
 export default class DcssFx {
     static name = 'DcssFx'
-    static version = '0.5.0'
+    static version = '0.6.0'
     static dependencies = ['RCManager']
     static description = 'Client-side visual effects: step slide, optional hop, attack bumps, smooth light. RC: fx_move_anim / fx_hop_anim / fx_bump_anim / fx_light = true.'
 
@@ -33,7 +33,7 @@ export default class DcssFx {
                     hopHeight: RCManager.getRCOption(rcfile, 'fx_hop_height', 'float', 0.12),
                     light: RCManager.getRCOption(rcfile, 'fx_light', 'boolean', false),
                     lightRadius: RCManager.getRCOption(rcfile, 'fx_light_radius', 'float', 8),
-                    lightEdge: RCManager.getRCOption(rcfile, 'fx_light_edge', 'float', 0.72),
+                    lightCore: RCManager.getRCOption(rcfile, 'fx_light_core', 'float', 0.3),
                     lightShadow: RCManager.getRCOption(rcfile, 'fx_light_shadow', 'float', 0.55),
                     lightAmbient: RCManager.getRCOption(rcfile, 'fx_light_ambient', 'float', 0.38),
                     lightKey: RCManager.getRCOption(rcfile, 'fx_light_key', 'string', 'F8'),

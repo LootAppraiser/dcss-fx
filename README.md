@@ -10,9 +10,10 @@ client already received is drawn.
 - **Hop** *(optional)*: a little body hop and squash while stepping.
 - **Attack effects**: the attacker lunges, a hit target recoils and flashes (red for you, white for
   monsters), a miss makes the target sidestep. Overlapping hits all show.
-- **Smooth light**: a soft ray-cast light pool around you instead of hard lit/dim tiles. It only uses
-  what the game already shows you, and a visible tile never goes darker than a floor value, so nothing
-  is ever hidden. A hotkey toggles it so you can compare.
+- **Smooth light**: replaces the game's hard lit/dim tiles with one continuous ray-cast light pool around you:
+  full brightness near you, falling off smoothly to the dim "remembered" level, with soft shadows behind walls
+  and doorways. No tile edges show in the lighting. It only uses what the game already shows you, and visible
+  monsters and items are never dimmed away. A hotkey toggles it so you can compare.
 - HP/MP mini-bars follow your sprite instead of jumping.
 
 Everything is **off until you turn it on in your RC**. Tile mode only (glyph/console mode and the
@@ -54,10 +55,10 @@ Works on the servers DWEM supports (CDI, CAO, CBR2, CNC, CPO, CXC, ...).
 | `fx_bump_anim = true` | off | Attack effects (lunge / recoil + flash / sidestep) |
 | `fx_bump_ms` | 190 | Length of one attack effect (ms) |
 | `fx_light = true` | off | Smooth ray-cast light around you |
-| `fx_light_radius` | 8 | Cells until the light falls off to `fx_light_edge` |
-| `fx_light_edge` | 0.72 | Brightness of visible tiles at the radius (1 = no falloff) |
-| `fx_light_shadow` | 0.55 | Darkest a visible but shadowed tile can get |
-| `fx_light_ambient` | 0.38 | Brightness of remembered (out of sight) tiles |
+| `fx_light_radius` | 8 | Distance in tiles where the light has faded to the remembered level |
+| `fx_light_core` | 0.3 | Fraction of the radius that stays fully bright before the falloff starts |
+| `fx_light_ambient` | 0.38 | Brightness of remembered (out of sight) tiles, and of everything past the radius |
+| `fx_light_shadow` | 0.55 | Brightness floor for visible monsters and items, so none is lost in the dark |
 | `fx_light_key` | F8 | Key that toggles the light on/off (`Alt+L`, `Ctrl+Shift+L`, ... or `off`) |
 
 ## Debugging (browser console, F12)

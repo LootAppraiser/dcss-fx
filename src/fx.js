@@ -32,9 +32,9 @@ const DEFAULTS = {
     maxJump: 3,       // a move bigger than this (teleport, blink) snaps instead of gliding
     chainMs: 260,     // steps closer together than this are chained
     light: false,       // smooth ray-cast light around the player (RC: fx_light)
-    lightRadius: 8,     // cells; falloff reaches `lightEdge` here
-    lightEdge: 0.72,    // brightness of visible cells at the radius (1 = no falloff)
-    lightShadow: 0.55,  // brightness floor of visible cells a ray says are shadowed (never hides anything)
+    lightRadius: 8,     // cells; the light pool fades smoothly to the remembered level at this distance
+    lightCore: 0.3,     // fraction of the radius that stays fully bright before the falloff starts
+    lightShadow: 0.55,  // brightness floor for visible monsters/items so none is ever lost in the dark
     lightAmbient: 0.38, // brightness of remembered (out of sight) cells
     lightFadeMs: 70,    // how fast brightness eases when cells enter/leave sight
     lightKey: 'F8',     // key that toggles the light on/off for comparing (RC: fx_light_key; 'off' disables)
@@ -399,7 +399,7 @@ export function createFx(userCfg = {}) {
         // Replaces the game's per-tile "lit / dim" look with a smooth light pool around the player.
         // The game's own visible set stays the truth: visible cells never go below `lightShadow`
         // (nothing is ever hidden); rays from the player only shape the brightness inside it.
-        const S = 3;                                   // light samples per cell, each axis
+        const S = 4;                                   // light samples per cell, each axis
         const lightCanvas = document.createElement('canvas');
         lightCanvas.id = 'dcss-fx-light';
         lightCanvas.style.mixBlendMode = 'multiply';
@@ -431,18 +431,20 @@ export function createFx(userCfg = {}) {
             return false;
         }
 
-        // bit 1 = visible now, 2 = remembered, 4 = magic-mapped, 8 = blocks sight
+        // bit 1 = visible now, 2 = remembered, 4 = magic-mapped, 8 = blocks sight,
+        // 16 = visible and holds a monster/item (never dimmed away), 32 = never seen
         function classify(cell) {
             const t = cell.t;
-            if (!t) return 8;
+            if (!t) return 8 | 32;
             const bg = enums.prepare_bg_flags(t.bg || 0);
             const v = bg.value;
-            if (!(v > 0)) return 8;                                         // never seen: treat as solid
+            if (!(v > 0)) return 8 | 32;                                    // never seen: treat as solid
             let f = 0;
             if (bg.MM_UNSEEN) f |= 4;
             else if (bg.UNSEEN) f |= 2;
             else f |= 1;
             if (tileOpaque(v)) f |= 8;
+            if ((f & 1) && t.fg && enums.prepare_fg_flags(t.fg).value) f |= 16;
             return f;
         }
 
@@ -477,49 +479,82 @@ export function createFx(userCfg = {}) {
             return (L.info[ly * L.cols + lx] & 8) !== 0;
         };
 
-        function ray(ox, oy, qx, qy) {
+        // Fraction of light from (ox,oy) that reaches (qx,qy): 0 if a sight-blocking cell is in the way.
+        // The target cell itself is exempt, so a wall face is lit; light then fades into the wall with depth,
+        // so the lit side of a wall has no hard tile-sized edge.
+        function castV(ox, oy, qx, qy) {
             const dx = qx - ox, dy = qy - oy;
-            const n = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 0.25));
+            const len = Math.hypot(dx, dy);
+            const n = Math.max(1, Math.ceil(len / 0.2));
             const ocx = Math.floor(ox), ocy = Math.floor(oy), tcx = Math.floor(qx), tcy = Math.floor(qy);
-            for (let k = 1; k < n; k++) {
+            let enter = -1;
+            for (let k = 1; k <= n; k++) {
                 const cx = Math.floor(ox + dx * k / n), cy = Math.floor(oy + dy * k / n);
-                if ((cx === ocx && cy === ocy) || (cx === tcx && cy === tcy)) continue;
+                if (cx === ocx && cy === ocy) continue;
+                if (cx === tcx && cy === tcy) { if (enter < 0) enter = k; continue; }
                 if (opaqueAt(cx, cy)) return 0;
+            }
+            if (enter >= 0 && opaqueAt(tcx, tcy)) {
+                const depth = (n - enter) * (len / n);
+                return 1 - smooth(clamp(depth / 0.9, 0, 1));
             }
             return 1;
         }
 
+        const PEN = [-0.4, -0.2, 0, 0.2, 0.4];             // ray origins across the light's width: soft shadow edges
+        const blurTmp = {a: null};
+
+        // One continuous light pool. Brightness = remembered level + (1 - remembered) * pool(distance) * visibility,
+        // so it meets the remembered tiles with no step at the rim. Nothing here depends on which tile the game
+        // calls "lit": the game's visible set only protects monsters/items (flag 16) from being dimmed away.
         function computeTarget(ox, oy) {
             for (let cy = 0; cy < L.rows; cy++) {
                 for (let cx = 0; cx < L.cols; cx++) {
                     L.info[cy * L.cols + cx] = classify(mk.get(L.vx + cx, L.vy + cy));
                 }
             }
-            const R = cfg.lightRadius, a = 0.3;
+            const R = Math.max(1, cfg.lightRadius), core = clamp(cfg.lightCore, 0, 0.9) * R;
+            const A = cfg.lightAmbient, shadow = cfg.lightShadow;
             for (let j = 0; j < L.h; j++) {
                 const cy = Math.floor(j / S);
                 for (let i = 0; i < L.w; i++) {
                     const f = L.info[cy * L.cols + Math.floor(i / S)];
                     let v;
-                    if (f & 1) {
+                    if (f & 32) {
+                        v = A;                                              // never seen: the tile is black anyway
+                    } else if (f & 4) {
+                        v = 1;                                              // magic-mapped: the game's own mesh stays
+                    } else {
                         const qx = L.vx + (i + 0.5) / S, qy = L.vy + (j + 0.5) / S;
                         const dx = qx - ox, dy = qy - oy, d = Math.hypot(dx, dy);
-                        const u = clamp((d - R * 0.35) / (R * 0.65), 0, 1);
-                        const fall = 1 - (1 - cfg.lightEdge) * smooth(u);
-                        let lit = 1;
-                        if (d > 0.6) {
-                            const px = -dy / d * a, py = dx / d * a;
-                            lit = (ray(ox, oy, qx, qy) + ray(ox + px, oy + py, qx, qy) + ray(ox - px, oy - py, qx, qy)) / 3;
+                        const pool = 1 - smooth(clamp((d - core) / (R - core), 0, 1));
+                        let vis = 0;
+                        if (pool > 0.002) {
+                            if (d < 0.6) vis = 1;
+                            else {
+                                const px = -dy / d, py = dx / d;
+                                let sum = 0;
+                                for (const o of PEN) sum += castV(ox + px * o, oy + py * o, qx, qy);
+                                vis = sum / PEN.length;
+                            }
                         }
-                        const floor = Math.min(cfg.lightShadow, fall);
-                        v = floor + (fall - floor) * lit;
-                    } else if (f & 2) {
-                        v = cfg.lightAmbient;                               // remembered
-                    } else {
-                        v = 1;                                              // magic-mapped (game mesh) / unknown (black anyway)
+                        v = A + (1 - A) * pool * vis;
+                        if ((f & 16) && v < shadow) v = shadow;             // a visible monster/item is never lost
                     }
                     L.target[j * L.w + i] = v;
                 }
+            }
+            // light blur (1-2-1 both ways) so no quantisation of the sample grid is left to see
+            const w = L.w, h = L.h, T = L.target;
+            if (!blurTmp.a || blurTmp.a.length !== T.length) blurTmp.a = new Float32Array(T.length);
+            const B = blurTmp.a;
+            for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+                const l = T[j * w + Math.max(0, i - 1)], c = T[j * w + i], r2 = T[j * w + Math.min(w - 1, i + 1)];
+                B[j * w + i] = (l + 2 * c + r2) / 4;
+            }
+            for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+                const u = B[Math.max(0, j - 1) * w + i], c = B[j * w + i], dn = B[Math.min(h - 1, j + 1) * w + i];
+                T[j * w + i] = (u + 2 * c + dn) / 4;
             }
         }
 
