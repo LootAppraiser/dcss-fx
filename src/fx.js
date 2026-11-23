@@ -82,7 +82,7 @@ export function createFx(userCfg = {}) {
     let userLight = true;   // runtime toggle (hotkey); the RC option fx_light is the master switch
     const wanted = () => cfg.move || cfg.bump || cfg.hop || cfg.light;
     const stats = {playerSteps: 0, monsterMoves: 0, bumps: 0, frames: 0, fallbacks: 0, merges: 0,
-                   msgLines: 0, attackMsgs: 0, noAdjacent: 0, observerAttaches: 0, lightFrames: 0, maxLag: 0};
+                   msgLines: 0, attackMsgs: 0, noAdjacent: 0, observerAttaches: 0, lightFrames: 0, maxLag: 0, apronCells: 0};
 
     function hook({r, mk, enums, options, icons, dngn}) {
         const movers = new Map();     // key ('player' | 'm<id>') -> mover
@@ -305,6 +305,60 @@ export function createFx(userCfg = {}) {
             if (stage.height !== el.height) stage.height = el.height;
         }
 
+        // ---- apron --------------------------------------------------------
+        // The real canvas only holds the visible cols x rows. While the camera glides, a strip of the
+        // neighbouring map would be uncovered at the leading edge, and that read as black bars popping in
+        // and out at the border of the view. So the cells just outside the view are drawn into a ring
+        // ("apron") around the view and slid together with it; the border stays full of real map.
+        const apron = document.createElement('canvas');
+        const actx = apron.getContext('2d');
+        const ap = {key: '', l: 0, r: 0, t: 0, b: 0, M: 0};
+
+        function paintApron(off, cw, ch) {
+            const cols = r.cols, rows = r.rows, vx = r.view.x, vy = r.view.y;
+            const M = Math.ceil(cfg.maxLag) + 1;
+            const nl = clamp(Math.ceil(off.x - 0.001), 0, M), nr = clamp(Math.ceil(-off.x - 0.001), 0, M);
+            const nt = clamp(Math.ceil(off.y - 0.001), 0, M), nb = clamp(Math.ceil(-off.y - 0.001), 0, M);
+            if (!(nl || nr || nt || nb)) return;
+            const W = (cols + 2 * M) * cw, H = (rows + 2 * M) * ch;
+            const key = vx + ',' + vy + ',' + cols + ',' + rows + ',' + cw + ',' + ch;
+            if (apron.width !== W || apron.height !== H) {
+                apron.width = W; apron.height = H;
+                actx.imageSmoothingEnabled = false;
+                ap.key = '';
+            }
+            if (ap.key !== key) {
+                actx.clearRect(0, 0, W, H);
+                ap.key = key; ap.l = ap.r = ap.t = ap.b = 0; ap.M = M;
+            }
+            if (nl > ap.l || nr > ap.r || nt > ap.t || nb > ap.b) {
+                const l = Math.max(nl, ap.l), rr = Math.max(nr, ap.r), t = Math.max(nt, ap.t), b = Math.max(nb, ap.b);
+                const tmp = Object.create(r);
+                tmp.ctx = actx;
+                tmp.element = apron;
+                tmp.draw_minibars = noop;
+                tmp.render_cursors = noop;
+                tmp.render_flash = noop;
+                for (let j = -t; j < rows + b; j++) {
+                    for (let i = -l; i < cols + rr; i++) {
+                        const inside = i >= 0 && i < cols && j >= 0 && j < rows;
+                        const had = i >= -ap.l && i < cols + ap.r && j >= -ap.t && j < rows + ap.b;
+                        if (inside || had) continue;
+                        const wx = vx + i, wy = vy + j;
+                        if (wx < 0 || wy < 0) continue;
+                        const mc = mk.get(wx, wy);
+                        if (!mc || !mc.t) continue;
+                        try { tmp.do_render_cell(wx, wy, (i + M) * cw, (j + M) * ch, mc, mc.t); }
+                        catch (e) { log('apron cell', e); }
+                        stats.apronCells++;
+                    }
+                }
+                ap.l = l; ap.r = rr; ap.t = t; ap.b = b;
+            }
+            sctx.imageSmoothingEnabled = false;
+            sctx.drawImage(apron, Math.round(off.x * cw) - M * cw, Math.round(off.y * ch) - M * ch);
+        }
+
         function activate() {
             if (active) return;
             active = true;
@@ -349,6 +403,7 @@ export function createFx(userCfg = {}) {
                 sctx.fillStyle = '#000';
                 sctx.fillRect(0, 0, stage.width, stage.height);
                 sctx.imageSmoothingEnabled = false;
+                paintApron(off, cw, ch);
                 sctx.drawImage(r.element, Math.round(off.x * cw), Math.round(off.y * ch));
                 const finished = [];
                 for (const m of movers.values()) {
@@ -646,7 +701,8 @@ export function createFx(userCfg = {}) {
             }
             lmctx.putImageData(L.img, 0, 0);
             lctx.globalCompositeOperation = 'source-over';
-            lctx.fillStyle = '#fff';
+            const amb = Math.round(clamp(cfg.lightAmbient, 0, 1) * 255);
+            lctx.fillStyle = 'rgb(' + amb + ',' + amb + ',' + amb + ')';   // beyond the view: remembered-level light
             lctx.fillRect(0, 0, lightCanvas.width, lightCanvas.height);
             lctx.imageSmoothingEnabled = true;
             lctx.imageSmoothingQuality = 'high';

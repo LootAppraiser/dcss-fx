@@ -13,7 +13,7 @@ import {createFx} from './fx.js';
 
 export default class DcssFx {
     static name = 'DcssFx'
-    static version = '0.7.0'
+    static version = '0.7.1'
     static dependencies = ['RCManager']
     static description = 'Client-side visual effects: step slide, optional hop, attack bumps, smooth light. RC: fx_move_anim / fx_hop_anim / fx_bump_anim / fx_light = true.'
 

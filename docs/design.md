@@ -190,3 +190,19 @@ information (what is in sight) was lost.
 - `fx_light_edge` returned with a new meaning (brightness of lit tiles at the radius). The old v0.6 RC values
   (radius 8, edge 0.72, shadow 0.55) work but leave only a 0.10 seen/remembered gap; use the new defaults.
 - Not yet judged by a human in the real window.
+
+## v0.7.1: no dark strips at the edge of the view while the camera glides
+Problem (reported in play, autoexplore/travel): the real canvas only holds the visible cols x rows. Sliding it by
+the camera offset uncovered a strip (up to `maxLag` cells wide, on the side the player is heading) that the stage
+filled with black, so the border of the view flickered with bars popping in and out on every step.
+- Fix: an "apron". Before the stage blits the real canvas, it draws the cells just outside the view (from
+  `map_knowledge`, with the game's own `do_render_cell` onto an off-screen canvas of (cols+2M) x (rows+2M) cells,
+  M = ceil(maxLag)+1) at the same camera offset. Only the sides and depth actually needed this frame are rendered,
+  once per view origin, so a step costs about one strip of cells (what the game itself renders when it scrolls).
+- The light overlay used to be white (no darkening) outside its own window, which would have made the apron
+  bright; it now fills with the ambient level, the same as remembered cells.
+- Measured with a mock renderer in headless Chromium (9x7 view, 15-step path incl. diagonals, 45 ms apart):
+  opaque black pixels on the stage per frame, worst case 56,320 of 64,512 before (v0.7.0) -> 0 after, no
+  fallbacks. Not yet judged by a human in the real window.
+- Camera timing (`maxLag`, cadence, one curve for feet and camera) is unchanged since v0.5; v0.6 and v0.7
+  only touched the light.
