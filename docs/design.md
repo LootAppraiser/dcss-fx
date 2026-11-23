@@ -215,3 +215,15 @@ black margin past the last cell. The stage blitted the whole canvas, so the slid
 view and it was drawn on top of the apron.
 - Fix: blit only `cols x rows` cells, and keep the margin black on the stage exactly as the static game shows it.
 - The v0.7.1 headless mock used an integer ratio and could not show this. Not yet judged by a human.
+
+## v0.7.3: the edge strip shows what was on screen, and the light reaches past the edge
+After v0.7.2 single tiles at the trailing edge (the side you walk away from) still went dark during the glide.
+Two weak spots in v0.7.1/0.7.2:
+- The apron re-rendered off-screen cells with the game's `do_render_cell` from `map_knowledge`. Any cell that
+  failed to draw there stayed black, and it was a second rendering path that could differ from the screen.
+  Now the apron is a memory of the screen: right before every scroll (`set_view_center`, old view still on the
+  canvas) the visible cells are stamped into a canvas with a ring of PAD = ceil(maxLag)+1 cells, re-anchored to
+  the map each step. The trailing strip is pixel-identical to what was just shown; nothing is re-rendered.
+- The light window covered only the visible cells, so the uncovered strip got a flat ambient level (0.38)
+  instead of its real light, which read as tiles going dark. The light is now computed PAD cells past every edge.
+- Not reproduced or verified by me: this is from reading the code, not from seeing the bug. Needs a human test.

@@ -82,7 +82,7 @@ export function createFx(userCfg = {}) {
     let userLight = true;   // runtime toggle (hotkey); the RC option fx_light is the master switch
     const wanted = () => cfg.move || cfg.bump || cfg.hop || cfg.light;
     const stats = {playerSteps: 0, monsterMoves: 0, bumps: 0, frames: 0, fallbacks: 0, merges: 0,
-                   msgLines: 0, attackMsgs: 0, noAdjacent: 0, observerAttaches: 0, lightFrames: 0, maxLag: 0, apronCells: 0};
+                   msgLines: 0, attackMsgs: 0, noAdjacent: 0, observerAttaches: 0, lightFrames: 0, maxLag: 0};
 
     function hook({r, mk, enums, options, icons, dngn}) {
         const movers = new Map();     // key ('player' | 'm<id>') -> mover
@@ -306,57 +306,50 @@ export function createFx(userCfg = {}) {
         }
 
         // ---- apron --------------------------------------------------------
-        // The real canvas only holds the visible cols x rows. While the camera glides, a strip of the
-        // neighbouring map would be uncovered at the leading edge, and that read as black bars popping in
-        // and out at the border of the view. So the cells just outside the view are drawn into a ring
-        // ("apron") around the view and slid together with it; the border stays full of real map.
+        // The real canvas only holds the visible cols x rows. While the camera glides, a strip just outside
+        // the view (on the side you are walking away from) is on screen. It must show exactly what was there
+        // a moment ago, so the apron is a memory of the screen itself: right before every scroll, the cells
+        // currently on screen are stamped into a canvas with a ring of PAD cells around the view, anchored to
+        // the map. Nothing is re-rendered, so the strip is pixel-identical to what you just saw.
+        const PAD = () => Math.ceil(cfg.maxLag) + 1;
         const apron = document.createElement('canvas');
         const actx = apron.getContext('2d');
-        const ap = {key: '', l: 0, r: 0, t: 0, b: 0, M: 0};
+        const ap = {vx: 0, vy: 0, cols: 0, rows: 0, cw: 0, ch: 0, P: 0, valid: false};
+        let apronTmp = null;
+
+        function apronInvalidate() { ap.valid = false; }
+
+        // Called with the OLD view still on the real canvas (before the game scrolls it).
+        function rememberScreen() {
+            const {width: cw, height: ch} = r.scaled_size();
+            const cols = r.cols, rows = r.rows, vx = r.view.x, vy = r.view.y, P = PAD();
+            if (!(cols > 0 && rows > 0 && cw > 0 && ch > 0)) return;
+            const W = (cols + 2 * P) * cw, H = (rows + 2 * P) * ch;
+            if (!ap.valid || ap.cols !== cols || ap.rows !== rows || ap.cw !== cw || ap.ch !== ch || ap.P !== P
+                || apron.width !== W || apron.height !== H) {
+                if (apron.width !== W || apron.height !== H) { apron.width = W; apron.height = H; }
+                actx.clearRect(0, 0, W, H);
+                Object.assign(ap, {vx, vy, cols, rows, cw, ch, P, valid: true});
+            } else if (ap.vx !== vx || ap.vy !== vy) {
+                // keep what is still inside the ring, re-anchored to the current view
+                if (!apronTmp) apronTmp = document.createElement('canvas');
+                if (apronTmp.width !== W || apronTmp.height !== H) { apronTmp.width = W; apronTmp.height = H; }
+                const tctx = apronTmp.getContext('2d');
+                tctx.clearRect(0, 0, W, H);
+                tctx.drawImage(apron, 0, 0);
+                actx.clearRect(0, 0, W, H);
+                actx.drawImage(apronTmp, (ap.vx - vx) * cw, (ap.vy - vy) * ch);
+                ap.vx = vx; ap.vy = vy;
+            }
+            actx.drawImage(r.element, 0, 0, cols * cw, rows * ch, P * cw, P * ch, cols * cw, rows * ch);
+        }
 
         function paintApron(off, cw, ch) {
-            const cols = r.cols, rows = r.rows, vx = r.view.x, vy = r.view.y;
-            const M = Math.ceil(cfg.maxLag) + 1;
-            const nl = clamp(Math.ceil(off.x - 0.001), 0, M), nr = clamp(Math.ceil(-off.x - 0.001), 0, M);
-            const nt = clamp(Math.ceil(off.y - 0.001), 0, M), nb = clamp(Math.ceil(-off.y - 0.001), 0, M);
-            if (!(nl || nr || nt || nb)) return;
-            const W = (cols + 2 * M) * cw, H = (rows + 2 * M) * ch;
-            const key = vx + ',' + vy + ',' + cols + ',' + rows + ',' + cw + ',' + ch;
-            if (apron.width !== W || apron.height !== H) {
-                apron.width = W; apron.height = H;
-                actx.imageSmoothingEnabled = false;
-                ap.key = '';
-            }
-            if (ap.key !== key) {
-                actx.clearRect(0, 0, W, H);
-                ap.key = key; ap.l = ap.r = ap.t = ap.b = 0; ap.M = M;
-            }
-            if (nl > ap.l || nr > ap.r || nt > ap.t || nb > ap.b) {
-                const l = Math.max(nl, ap.l), rr = Math.max(nr, ap.r), t = Math.max(nt, ap.t), b = Math.max(nb, ap.b);
-                const tmp = Object.create(r);
-                tmp.ctx = actx;
-                tmp.element = apron;
-                tmp.draw_minibars = noop;
-                tmp.render_cursors = noop;
-                tmp.render_flash = noop;
-                for (let j = -t; j < rows + b; j++) {
-                    for (let i = -l; i < cols + rr; i++) {
-                        const inside = i >= 0 && i < cols && j >= 0 && j < rows;
-                        const had = i >= -ap.l && i < cols + ap.r && j >= -ap.t && j < rows + ap.b;
-                        if (inside || had) continue;
-                        const wx = vx + i, wy = vy + j;
-                        if (wx < 0 || wy < 0) continue;
-                        const mc = mk.get(wx, wy);
-                        if (!mc || !mc.t) continue;
-                        try { tmp.do_render_cell(wx, wy, (i + M) * cw, (j + M) * ch, mc, mc.t); }
-                        catch (e) { log('apron cell', e); }
-                        stats.apronCells++;
-                    }
-                }
-                ap.l = l; ap.r = rr; ap.t = t; ap.b = b;
-            }
-            sctx.imageSmoothingEnabled = false;
-            sctx.drawImage(apron, Math.round(off.x * cw) - M * cw, Math.round(off.y * ch) - M * ch);
+            if (!ap.valid || ap.cw !== cw || ap.ch !== ch || ap.cols !== r.cols || ap.rows !== r.rows) return;
+            if (Math.abs(off.x) < 0.001 && Math.abs(off.y) < 0.001) return;
+            const x = (ap.vx - r.view.x - ap.P) * cw + Math.round(off.x * cw);
+            const y = (ap.vy - r.view.y - ap.P) * ch + Math.round(off.y * ch);
+            sctx.drawImage(apron, x, y);
         }
 
         function activate() {
@@ -512,8 +505,11 @@ export function createFx(userCfg = {}) {
             return f;
         }
 
+        // The light is computed PAD cells past every edge of the view, so the strip the camera glide
+        // uncovers is lit exactly like the rest of the map.
         function ensureWindow() {
-            const cols = r.cols, rows = r.rows, vx = r.view.x, vy = r.view.y;
+            const P = PAD();
+            const cols = r.cols + 2 * P, rows = r.rows + 2 * P, vx = r.view.x - P, vy = r.view.y - P;
             const w = cols * S, h = rows * S;
             if (L.cols !== cols || L.rows !== rows || !L.cur) {
                 L.cols = cols; L.rows = rows; L.w = w; L.h = h; L.vx = vx; L.vy = vy;
@@ -714,7 +710,8 @@ export function createFx(userCfg = {}) {
             lctx.fillRect(0, 0, lightCanvas.width, lightCanvas.height);
             lctx.imageSmoothingEnabled = true;
             lctx.imageSmoothingQuality = 'high';
-            lctx.drawImage(lm, 0, 0, L.w, L.h, Math.round(off.x * cw), Math.round(off.y * ch), L.cols * cw, L.rows * ch);
+            const lp = (L.cols - r.cols) / 2;
+            lctx.drawImage(lm, 0, 0, L.w, L.h, Math.round(off.x * cw) - lp * cw, Math.round(off.y * ch) - lp * ch, L.cols * cw, L.rows * ch);
         }
 
         // ---- hooks --------------------------------------------------------
@@ -748,6 +745,7 @@ export function createFx(userCfg = {}) {
 
         patch(r, 'set_view_center', orig => function (x, y) {
             const ox = this.view_center.x, oy = this.view_center.y;
+            if (x !== ox || y !== oy) { try { rememberScreen(); } catch (e) { apronInvalidate(); log('apron', e); } }
             const res = orig.apply(this, arguments);
             try {
                 const dx = x - ox, dy = y - oy;
@@ -766,7 +764,7 @@ export function createFx(userCfg = {}) {
         });
 
         patch(mk, 'clear', orig => function () {
-            try { cancelAll(); L.cur = null; L.dirty = true; } catch (e) { /* ignore */ }
+            try { cancelAll(); apronInvalidate(); L.cur = null; L.dirty = true; } catch (e) { /* ignore */ }
             return orig.apply(this, arguments);
         });
 
