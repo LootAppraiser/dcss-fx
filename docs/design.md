@@ -206,3 +206,12 @@ filled with black, so the border of the view flickered with bars popping in and 
   fallbacks. Not yet judged by a human in the real window.
 - Camera timing (`maxLag`, cadence, one curve for feet and camera) is unchanged since v0.5; v0.6 and v0.7
   only touched the light.
+
+## v0.7.2: the real cause of the edge bars (fractional devicePixelRatio)
+v0.7.1 was not enough: bars still showed on the right when walking left (and at the bottom walking up), most in
+long travel. Cause: `util.init_canvas` makes the canvas `floor(cols * cell * dpr)` px wide while `scaled_size()`
+gives cells of `floor(cell * dpr)`, so with a fractional ratio (browser zoom, display scaling) the canvas has a
+black margin past the last cell. The stage blitted the whole canvas, so the slide carried that margin into the
+view and it was drawn on top of the apron.
+- Fix: blit only `cols x rows` cells, and keep the margin black on the stage exactly as the static game shows it.
+- The v0.7.1 headless mock used an integer ratio and could not show this. Not yet judged by a human.

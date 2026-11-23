@@ -404,7 +404,15 @@ export function createFx(userCfg = {}) {
                 sctx.fillRect(0, 0, stage.width, stage.height);
                 sctx.imageSmoothingEnabled = false;
                 paintApron(off, cw, ch);
-                sctx.drawImage(r.element, Math.round(off.x * cw), Math.round(off.y * ch));
+                // Blit only the cell area. The game's canvas is floor(cols * cell * dpr) wide but its cells are
+                // floor(cell * dpr), so with a fractional devicePixelRatio there is a black margin past the last
+                // cell; sliding that margin into the view drew black bars over the edge (walking left / up).
+                const gw = r.cols * cw, gh = r.rows * ch;
+                sctx.drawImage(r.element, 0, 0, gw, gh, Math.round(off.x * cw), Math.round(off.y * ch), gw, gh);
+                // Keep that margin black exactly as the game shows it when nothing animates.
+                sctx.fillStyle = '#000';
+                if (stage.width > gw) sctx.fillRect(gw, 0, stage.width - gw, stage.height);
+                if (stage.height > gh) sctx.fillRect(0, gh, stage.width, stage.height - gh);
                 const finished = [];
                 for (const m of movers.values()) {
                     const p = sample(m, now);
