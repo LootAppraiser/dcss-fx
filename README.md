@@ -31,7 +31,7 @@ every push here reaches everyone automatically.
    (Ctrl+F12 on a Webtiles page opens DWEM's module manager once it runs.)
 3. Install the **DCSS FX loader** by opening this link and clicking **Install** in Tampermonkey:
 
-   **<https://raw.githubusercontent.com/LootAppraiser/DCSSFX/main/userscript/dcss-fx.user.js>**
+   **<https://raw.githubusercontent.com/LootAppraiser/dcss-fx/main/userscript/dcss-fx.user.js>**
 
 4. Add the options you want to your RC (on the server: **edit rc**). A ready-made block is in
    [`examples/rc-options.txt`](examples/rc-options.txt).

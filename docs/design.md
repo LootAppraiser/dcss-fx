@@ -4,7 +4,7 @@
 A DWEM module (`src/index.js`, default export class with `onLoad`) that depends on `RCManager` for RC
 options. `src/fx.js` is the core and has no DWEM dependency. DWEM loads modules from the URLs in
 `localStorage.DWEM_MODULES`, so a tiny stable userscript (`userscript/dcss-fx.user.js`) registers
-`https://cdn.jsdelivr.net/gh/LootAppraiser/DCSSFX@<commit>/src/index.js`. jsDelivr serves the files with a
+`https://cdn.jsdelivr.net/gh/LootAppraiser/dcss-fx@<commit>/src/index.js`. jsDelivr serves the files with a
 JavaScript MIME type and CORS (GitHub's raw links do not, and are refused as modules). The loader pins
 the newest commit (GitHub API, cached 5 min, applied on the next load) so updates need no Tampermonkey edit.
 It also removes stale copies of our URL that DWEM saved in `localStorage.DWEM`, so two versions never load.

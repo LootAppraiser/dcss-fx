@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DCSS FX
-// @namespace    https://github.com/LootAppraiser/DCSSFX
-// @version      1.0
+// @namespace    https://github.com/LootAppraiser/dcss-fx
+// @version      1.1
 // @description  Adds the DCSS FX module (smooth movement, attack effects, light) to DWEM. Needs the DWEM loader userscript. Install once; updates arrive automatically.
 // @match        http://webzook.net:8080/*
 // @match        https://crawl.kelbi.org/*
@@ -17,8 +17,8 @@
 // @match        https://crawl.nemelex.cards/*
 // @run-at       document-start
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/LootAppraiser/DCSSFX/main/userscript/dcss-fx.user.js
-// @downloadURL  https://raw.githubusercontent.com/LootAppraiser/DCSSFX/main/userscript/dcss-fx.user.js
+// @updateURL    https://raw.githubusercontent.com/LootAppraiser/dcss-fx/main/userscript/dcss-fx.user.js
+// @downloadURL  https://raw.githubusercontent.com/LootAppraiser/dcss-fx/main/userscript/dcss-fx.user.js
 // ==/UserScript==
 
 // Install it by URL (see README), never by pasting: Tampermonkey then keeps this loader up to date from git.
@@ -27,12 +27,12 @@
 // A new version therefore shows up one page reload after it is pushed.
 (function () {
     'use strict';
-    const REPO = 'LootAppraiser/DCSSFX';
+    const REPO = 'LootAppraiser/dcss-fx';
     const BRANCH = 'main';
     const TTL_SECONDS = 300;
     const K_REF = 'DCSSFX_REF', K_TIME = 'DCSSFX_REF_TIME';
-    // Any URL we may have registered before (older pinned commits, the old blob bundle).
-    const OURS = /cdn\.jsdelivr\.net\/gh\/LootAppraiser\/DCSSFX@|#dcss-fx$/;
+    // Any URL we may have registered before (older pinned commits, the old blob bundle, the pre-rename repo name).
+    const OURS = /cdn\.jsdelivr\.net\/gh\/LootAppraiser\/(?:DCSSFX|dcss-fx)@|#dcss-fx$/;
 
     // localStorage.DCSSFX_PIN = '<commit sha | tag | branch>' freezes the version (debugging / rollback).
     const ref = localStorage.DCSSFX_PIN || localStorage[K_REF] || BRANCH;
