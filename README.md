@@ -1,4 +1,4 @@
-# DCSS FX
+# dcss-fx
 
 Visual polish for **Dungeon Crawl Stone Soup Webtiles**, running in your browser as a
 [DWEM](https://github.com/refracta/dcss-webtiles-extension-module) module. Purely cosmetic:
